@@ -1,13 +1,14 @@
 NAME SCORE_SYSTEM
 DATASEG SEGMENT PARA
     W_HD DW 01H
+    REC_LEN EQU 33
     BUF DB 0
         DB 0
-        DB 32 DUP('$')
-    BUF2 DB 33 DUP('%')
+        DB 33 DUP('$')
+    BUF2 DB REC_LEN + 1 DUP('%')
     BUF2_LEN DW 0
     ROW LABEL BYTE
-        XH DB 4 DUP('#')
+        XH DB 5 DUP('$')
         XM DB 16 DUP('$') ;END WITH $
         SX DB 4 DUP('$')
         YW DB 4 DUP('$')
@@ -28,6 +29,7 @@ DATASEG SEGMENT PARA
     UNKNOWN_LABEL DB 'An unknown choice is given. $'
     NOT_CREATE_LABEL DB 'Your should create a file before this operation. $'
     SID_LENGTH_INCORRECT_LABEL DB 'Student ID should be four digits. $'
+    NOT_FOUND_LABEL DB 'Record is not found. $'
     MENU DB 30 DUP(' '), 0C9H, 17 DUP(0CDH), 0BBH, 0AH
          DB 30 DUP(' '), 0BAH, '1. APPEND A ROW  ', 0BAH, 0AH
          DB 30 DUP(' '), 0BAH, '2. DISPLAY A ROW ', 0BAH, 0AH
@@ -126,6 +128,14 @@ CODESEG SEGMENT PARA
         MOV CL, LM + 1
         CALL PROMPT_SAVE_STRING
     ENDM
+    SHOW_FIELD MACRO SRC, SRC_LABEL
+        MOV AH, 09H
+        MOV DX, OFFSET SRC_LABEL
+        INT 21H
+        MOV DX, OFFSET SRC
+        INT 21H
+        CALL PRINT_NEWLINE
+    ENDM
     
     APPEND_SCREEN PROC
         PUSH AX
@@ -133,11 +143,18 @@ CODESEG SEGMENT PARA
         PUSH CX
         PUSH DX
         CHECK_HD_OPEN BREAK_APPEND_SCREEN
+        ;MOVE TO THE END OF THE FILE
+        MOV AH, 42H
+        MOV AL, 02H
+        MOV BX, W_HD
+        MOV CX, 00H
+        MOV DX, 00H
+        INT 21H
         CALL PROMPT_RECORD
         ;TODO: CHK_DUPLICATE
         MOV AH, 40H
         MOV BX, W_HD
-        MOV CX, 32
+        MOV CX, REC_LEN
         MOV DX, OFFSET ROW
         INT 21H
         CHECK_SUCC SUCC_APPEND_LABEL
@@ -164,6 +181,16 @@ CODESEG SEGMENT PARA
             JMP RESTART_DISPLAY_SCREEN
         ENDIF_LENGTH_CHECK_2:
         CALL SEARCH_BY_ID
+        JC DS_NOT_FOUND
+            MOV AH, 3FH
+            MOV BX, W_HD
+            MOV CX, REC_LEN
+            MOV DX, OFFSET ROW
+            INT 21H
+            CALL SHOW_RECORD
+            JMP BREAK_DISPLAY_SCREEN
+        DS_NOT_FOUND:
+            MSG NOT_FOUND_LABEL, 0CH
         
         BREAK_DISPLAY_SCREEN:
         POP DX
@@ -387,6 +414,18 @@ CODESEG SEGMENT PARA
             RET
         PROMPT_SAVE_STRING ENDP
     PROMPT_RECORD ENDP
+    SHOW_RECORD PROC
+        CALL CLEAR_WORKING_AREA
+        SHOW_FIELD XH, XH_LABEL
+        SHOW_FIELD XM, XM_LABEL
+        SHOW_FIELD SX, SX_LABEL
+        SHOW_FIELD YW, YW_LABEL
+        SHOW_FIELD WY, WY_LABEL
+        ;PRESS ANY KEY TO CONTINUE
+        MOV AH, 01H
+        INT 21H
+        RET
+    SHOW_RECORD ENDP
     SEARCH_BY_ID PROC ;CONTRUCTING
         ; @PARAMS XH_KEYWORD
         ; @RETURN CF: 0 - NOT FOUND
@@ -407,10 +446,10 @@ CODESEG SEGMENT PARA
         ;SEARCH THE ROWS
         MOV BX, W_HD
         MOV DX, OFFSET BUF2
-        CLC
+        STC
         NEXT_ROW_CHECK:
             MOV AH, 3FH
-            MOV CX, 32
+            MOV CX, REC_LEN
             INT 21H
             MOV BUF2_LEN, AX
             
@@ -421,12 +460,17 @@ CODESEG SEGMENT PARA
             CLD
             REPE CMPSB
             JNZ ENDIF_CMP_SID
-                MSG SUCC_LABEL, 0AH
-                STC
+                MOV AH, 42H
+                MOV AL, 01H
+                MOV BX, W_HD
+                MOV CX, 0FFFFH
+                MOV DX, -REC_LEN
+                INT 21H
+                CLC
                 JMP BREAK_ROW_CHECK
             ENDIF_CMP_SID:
             
-            CMP BUF2_LEN, 32
+            CMP BUF2_LEN, REC_LEN
         JE NEXT_ROW_CHECK
         BREAK_ROW_CHECK:
         POP DI
@@ -439,6 +483,8 @@ CODESEG SEGMENT PARA
     SEARCH_BY_ID ENDP
 CODESEG ENDS
     END START
+
+
 
 
 
