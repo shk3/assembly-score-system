@@ -15,6 +15,7 @@ DATASEG SEGMENT PARA
         WY DB 4 DUP('$')
         EDF DB '|'
     XH_KEYWORD DB 5 DUP('#')
+    XH_DELETED DB 5 DUP('#')
     FULL_PATH LABEL BYTE
         PATH DB 'D:\CHENGJI\2009\'
         FILENAME DB 10H DUP(00H)
@@ -88,6 +89,11 @@ CODESEG SEGMENT PARA
             CALL MODIFY_SCREEN
             JMP NEXT_WELCOME_PROMPT
         SKIP_C3:
+        CMP AL, '4'
+            JNE SKIP_C4
+            CALL DELETE_SCREEN
+            JMP NEXT_WELCOME_PROMPT
+        SKIP_C4:
             MSG UNKNOWN_LABEL, 0CH
     JMP NEXT_WELCOME_PROMPT
     BREAK_WELCOME_PROMPT:
@@ -155,14 +161,17 @@ CODESEG SEGMENT PARA
         PUSH BX
         PUSH CX
         PUSH DX
+        PUSH SI
+        PUSH DI
         CHECK_HD_OPEN BREAK_APPEND_SCREEN
-        ;MOVE TO THE END OF THE FILE
-        MOV AH, 42H
-        MOV AL, 02H
-        MOV BX, W_HD
-        MOV CX, 00H
-        MOV DX, 00H
-        INT 21H
+        ;LOAD DELETED KEYWORD
+        MOV CX, 5
+        MOV SI, OFFSET XH_DELETED
+        MOV DI, OFFSET XH_KEYWORD
+        CLD
+        REP MOVSB
+        ;MOVE TO DELETED ROW OR END OF THE FILE
+        CALL SEARCH_BY_ID
         CALL PROMPT_RECORD
         ;TODO: CHK_DUPLICATE
         MOV AH, 40H
@@ -172,6 +181,8 @@ CODESEG SEGMENT PARA
         INT 21H
         CHECK_SUCC SUCC_APPEND_LABEL
         BREAK_APPEND_SCREEN:
+        POP DI
+        POP SI
         POP DX
         POP CX
         POP BX
@@ -251,6 +262,41 @@ CODESEG SEGMENT PARA
         POP AX
         RET
     MODIFY_SCREEN ENDP
+    DELETE_SCREEN PROC
+        PUSH AX
+        PUSH BX
+        PUSH CX
+        PUSH DX
+        PUSH DI
+        PUSH SI
+        RESTART_DELETE_SCREEN:
+        CALL CLEAR_WORKING_AREA
+        CHECK_HD_OPEN BREAK_DELETE_SCREEN
+        
+        PROMPT_FIELD XH_KEYWORD, PROMPT_STUDENT_ID_LABEL, 4
+        LENG_CHK RESTART_DELETE_SCREEN
+        CALL SEARCH_BY_ID
+        JC DS_NOT_FOUND
+            ;MARK SID AS DELETED
+            MOV AH, 40H
+            MOV BX, W_HD
+            MOV CX, 5
+            MOV DX, OFFSET XH_DELETED
+            INT 21H
+            CHECK_SUCC SUCC_DELETE_LABEL
+            JMP BREAK_DELETE_SCREEN
+        DS_NOT_FOUND:
+            MSG NOT_FOUND_LABEL, 0CH
+        
+        BREAK_DELETE_SCREEN:
+        POP SI
+        POP DI
+        POP DX
+        POP CX
+        POP BX
+        POP AX
+        RET
+    DELETE_SCREEN ENDP
     CREATE_SCREEN PROC
         ; @DSPTN CREATE AND GET HANDLE BY A GIVEN FILENAME
         PUSH AX
@@ -540,6 +586,7 @@ CODESEG SEGMENT PARA
     SEARCH_BY_ID ENDP
 CODESEG ENDS
     END START
+
 
 
 
