@@ -28,6 +28,7 @@ DATASEG SEGMENT PARA
     SUCC_DELETE_LABEL DB 'Record has been deleted. $'
     SUCC_SAVE_LABEL DB 'File has been closed. Now you can turn off the computer safely. $'
     UNKNOWN_LABEL DB 'An unknown choice is given. $'
+    DUPLICATE_LABEL DB 'A record with the same SID is found. $'
     NOT_CREATE_LABEL DB 'Your should create a file before this operation. $'
     SID_LENGTH_INCORRECT_LABEL DB 'Student ID should be four digits. $'
     NOT_FOUND_LABEL DB 'Record is not found. $'
@@ -164,6 +165,19 @@ CODESEG SEGMENT PARA
         PUSH SI
         PUSH DI
         CHECK_HD_OPEN BREAK_APPEND_SCREEN
+        CALL PROMPT_RECORD
+        ;LOAD INPUT SID AS KEYWORD
+        MOV CX, 5
+        MOV SI, OFFSET XH
+        MOV DI, OFFSET XH_KEYWORD
+        CLD
+        REP MOVSB
+        ;CHK_DUPLICATE
+        CALL SEARCH_BY_ID
+        JC SKIP_DUPLICATE_FOUND
+            MSG DUPLICATE_LABEL, 0CH
+            JMP BREAK_APPEND_SCREEN
+        SKIP_DUPLICATE_FOUND:
         ;LOAD DELETED KEYWORD
         MOV CX, 5
         MOV SI, OFFSET XH_DELETED
@@ -172,8 +186,6 @@ CODESEG SEGMENT PARA
         REP MOVSB
         ;MOVE TO DELETED ROW OR END OF THE FILE
         CALL SEARCH_BY_ID
-        CALL PROMPT_RECORD
-        ;TODO: CHK_DUPLICATE
         MOV AH, 40H
         MOV BX, W_HD
         MOV CX, REC_LEN
