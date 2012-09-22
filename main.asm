@@ -305,7 +305,13 @@ CODESEG SEGMENT PARA
         PUSH DX
         CALL CLEAR_WORKING_AREA
         CALL PROMPT_FILENAME
-        ;TODO: CLOSE LAST
+        ;CLOSE LAST
+        CMP W_HD, 01H
+        JE SKIP_CLOSE_LAST
+            MOV AH, 3EH
+            MOV BX, W_HD
+            INT 21H
+        SKIP_CLOSE_LAST:
         MOV AH, 3CH
         MOV CX, 00H
         MOV DX, OFFSET FULL_PATH
