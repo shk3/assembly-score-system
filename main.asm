@@ -18,8 +18,8 @@ DATASEG SEGMENT PARA
     FULL_PATH LABEL BYTE
         PATH DB 'D:\CHENGJI\2009\'
         FILENAME DB 10H DUP(00H)
-    ROMPT_FILENAME_LABEL DB 12H DUP(' '), 'Please enter a file name to store the data.', 0AH, 12H DUP(' '), 'Filename: $'
-    ROMPT_STUDENT_ID_LABEL DB 12H DUP(' '), 'Please enter the ID to work.', 0AH, 12H DUP(' '), 'Student ID: $'
+    PROMPT_FILENAME_LABEL DB 12H DUP(' '), 'Please enter a file name to store the data.', 0AH, 12H DUP(' '), 'Filename: $'
+    PROMPT_STUDENT_ID_LABEL DB 12H DUP(' '), 'Please enter the ID to work.', 0AH, 12H DUP(' '), 'Student ID: $'
     ERROR_LABEL DB 'Encounter an IO error. Error Code: $'
     SUCC_LABEL DB 'File has been created. $'
     SUCC_APPEND_LABEL DB 'Record has been appended into file. $'
@@ -187,10 +187,11 @@ CODESEG SEGMENT PARA
         CALL CLEAR_WORKING_AREA
         CHECK_HD_OPEN BREAK_DISPLAY_SCREEN
         
-        PROMPT_FIELD XH_KEYWORD, ROMPT_STUDENT_ID_LABEL, 4
+        PROMPT_FIELD XH_KEYWORD, PROMPT_STUDENT_ID_LABEL, 4
         LENG_CHK RESTART_DISPLAY_SCREEN
         CALL SEARCH_BY_ID
         JC DS_NOT_FOUND
+            ;LOAD MATCHED ROW
             MOV AH, 3FH
             MOV BX, W_HD
             MOV CX, REC_LEN
@@ -213,25 +214,37 @@ CODESEG SEGMENT PARA
         PUSH BX
         PUSH CX
         PUSH DX
+        PUSH DI
+        PUSH SI
         RESTART_MODIFY_SCREEN:
         CALL CLEAR_WORKING_AREA
         CHECK_HD_OPEN BREAK_MODIFY_SCREEN
         
-        PROMPT_FIELD XH_KEYWORD, ROMPT_STUDENT_ID_LABEL, 4
+        PROMPT_FIELD XH_KEYWORD, PROMPT_STUDENT_ID_LABEL, 4
         LENG_CHK RESTART_MODIFY_SCREEN
         CALL SEARCH_BY_ID
         JC DS_NOT_FOUND
-            MOV AH, 3FH
+            ;GET SID
+            MOV CX, 5
+            MOV SI, OFFSET XH_KEYWORD
+            MOV DI, OFFSET XH
+            CLD
+            REP MOVSB
+            ;PROMPT DETAIL
+            CALL PROMPT_REVISE_RECORD
+            MOV AH, 40H
             MOV BX, W_HD
             MOV CX, REC_LEN
             MOV DX, OFFSET ROW
             INT 21H
-            CALL SHOW_RECORD
+            CHECK_SUCC SUCC_MODIFY_LABEL
             JMP BREAK_MODIFY_SCREEN
         DS_NOT_FOUND:
             MSG NOT_FOUND_LABEL, 0CH
         
         BREAK_MODIFY_SCREEN:
+        POP SI
+        POP DI
         POP DX
         POP CX
         POP BX
@@ -263,7 +276,7 @@ CODESEG SEGMENT PARA
         PROMPT_FILENAME PROC
             ; @DSPTN PUT FILENAME RIGHT AFTER PATH
             MOV AH, 09H
-            MOV DX, OFFSET ROMPT_FILENAME_LABEL
+            MOV DX, OFFSET PROMPT_FILENAME_LABEL
             INT 21H
             MOV AH, 0AH
             MOV DX, OFFSET BUF
@@ -449,6 +462,15 @@ CODESEG SEGMENT PARA
             RET
         PROMPT_SAVE_STRING ENDP
     PROMPT_RECORD ENDP
+    PROMPT_REVISE_RECORD PROC
+        CALL CLEAR_WORKING_AREA
+        SHOW_FIELD XH, XH_LABEL
+        PROMPT_FIELD XM, XM_LABEL, 15
+        PROMPT_FIELD SX, SX_LABEL, 3
+        PROMPT_FIELD YW, YW_LABEL, 3
+        PROMPT_FIELD WY, WY_LABEL, 3
+        RET
+    PROMPT_REVISE_RECORD ENDP
     SHOW_RECORD PROC
         CALL CLEAR_WORKING_AREA
         SHOW_FIELD XH, XH_LABEL
